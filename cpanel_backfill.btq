@@ -1,0 +1,82 @@
+.SET ECHOREQ ON
+.SET ERROROUT STDOUT
+.SET WIDTH 256
+
+
+.LOGON godaddy3.prod.phx3.gdg/P_BTCH_HadoopImp,P_BTCH_HadoopImp;
+
+
+
+.IF ERRORCODE <> 0 THEN .GOTO E003
+
+
+MERGE INTO P_ARM_IMPORT.PROD_EVENTS AS trgt
+USING
+(
+    SELECT
+        SHOPPER_ID,
+        RESOURCE_ID,
+        PROD_TYPE,
+        cast(cast(EVENT_DATE_TXT AS char(10)) AS DATE FORMAT 'YYYY-MM-DD') AS EVENT_DATE_TXT,
+        EVENT_ACTION
+    FROM
+        P_HadoopImp_S.STG_PROD_EVENTS
+    WHERE
+        EVENT_DATE_TXT <> '\N'
+) AS src
+ON src.SHOPPER_ID = trgt.SHOPPER_ID
+    AND src.RESOURCE_ID = trgt.RESOURCE_ID
+    AND src.PROD_TYPE = trgt.PROD_TYPE
+    AND src.EVENT_DATE_TXT = trgt.EVENT_DATE
+    AND src.EVENT_ACTION = trgt.EVENT_ACTION
+WHEN NOT MATCHED THEN INSERT
+    (
+        SHOPPER_ID,
+        RESOURCE_ID,
+        PROD_TYPE,
+        EVENT_DATE,
+        EVENT_ACTION
+    )
+    VALUES
+    (
+        src.SHOPPER_ID,
+        src.RESOURCE_ID,
+        src.PROD_TYPE,
+        src.EVENT_DATE_TXT,
+        src.EVENT_ACTION
+    );
+
+
+
+.IF ERRORCODE <> 0 THEN .GOTO E003
+
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(SHOPPER_ID);
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(EVENT_DATE);
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(EVENT_ACTION);
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(SHOPPER_ID,EVENT_DATE);
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(EVENT_DATE,EVENT_ACTION);
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(SHOPPER_ID,EVENT_ACTION);
+COLLECT STATS P_ARM_IMPORT.PROD_EVENTS COLUMN(SHOPPER_ID,EVENT_ACTION,EVENT_DATE);
+
+.IF ERRORCODE <> 0 THEN .GOTO E003
+
+DELETE P_HADOOPIMP_S.STG_PROD_EVENTS ALL;
+
+.IF ERRORCODE <> 0 THEN .GOTO E003
+
+------------------------------------------------------------------------
+--  086 - Good exit
+------------------------------------------------------------------------
+
+.LABEL E086
+.LOGOFF
+.QUIT
+
+
+------------------------------------------------------------------------
+--  E003 - Error exit
+------------------------------------------------------------------------
+     
+.LABEL E003
+.LOGOFF
+.QUIT 16 
